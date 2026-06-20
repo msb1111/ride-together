@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Ride Together — Live Group Map</title>
+<style>
+  :root{
+    --bg:#12161a;
+    --surface:#1c2227;
+    --surface-2:#252c32;
+    --line:#323a40;
+    --text:#eef2ef;
+    --muted:#8fa19a;
+    --accent:#c8ff4d;
+    --accent-ink:#1c2227;
+    --danger:#ff6b5e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  #join-screen{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px 24px;}
+  .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 6px;}
+  h1{font-size:26px;margin:0 0 6px;line-height:1.15;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 22px;}
+  label{display:block;font-size:13px;color:var(--muted);margin:16px 0 6px;}
+  input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:16px;}
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  button{border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;padding:14px;width:100%;}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);margin-top:22px;}
+  #status-msg{font-size:13px;color:var(--danger);margin-top:10px;min-height:16px;}
+
+  #map-screen{display:none;height:100%;position:relative;}
+  #map{height:100%;width:100%;}
+
+  #panel{position:absolute;top:14px;left:14px;right:14px;max-width:300px;background:rgba(28,34,39,.92);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:14px;padding:14px;}
+  #panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;}
+  .rider-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:14px;}
+  .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .rider-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rider-time{color:var(--muted);font-size:12px;}
+  .offline{opacity:.45;}
+
+  #stop-btn{position:absolute;bottom:18px;left:14px;right:90px;max-width:240px;background:var(--danger);color:#1c1c1c;}
+  #center-btn{position:absolute;bottom:18px;right:14px;width:56px;height:56px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--accent);font-size:20px;padding:0;}
+  @media(min-width:640px){
+    #stop-btn{left:14px;right:auto;}
+  }
+</style>
+</head>
+<body>
+
+<div id="join-screen">
+  <div class="card">
+    <p class="eyebrow">Ride Together</p>
+    <h1>See your group, live.</h1>
+    <p class="sub">Everyone who opens this page with the same group code shows up on the same map.</p>
+    <label for="name-input">Your name</label>
+    <input id="name-input" maxlength="20" placeholder="e.g. Manjyot">
+    <label for="group-input">Group code</label>
+    <input id="group-input" maxlength="24" placeholder="e.g. amritsar-sunday-ride">
+    <button id="join-btn" class="btn-primary">Start sharing my location</button>
+    <p id="status-msg"></p>
+  </div>
+</div>
+
+<div id="map-screen">
+  <div id="map"></div>
+  <div id="panel">
+    <h2>On this ride</h2>
+    <div id="rider-list"></div>
+  </div>
+  <button id="center-btn" title="Center on group">⌖</button>
+  <button id="stop-btn">Stop sharing</button>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getDatabase, ref, set, remove, onValue, onDisconnect
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  // -----------------------------------------------------------------
+  // SETUP STEP 1: paste your Firebase config here.
+  // Firebase console -> Project settings -> General -> Your apps -> SDK config
+  // -----------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "AIzaSyA0OXUeBOISROpw4RSu1u5advqrcnSjaX8",
+    authDomain: "gilded-throttle-ride-share.firebaseapp.com",
+    databaseURL: "https://gilded-throttle-ride-share-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "gilded-throttle-ride-share",
+    storageBucket: "gilded-throttle-ride-share.firebasestorage.app",
+    messagingSenderId: "467624812499",
+    appId: "1:467624812499:web:cf846a74a90972d8f81926"
+  };
+
+  // -----------------------------------------------------------------
+  // SETUP STEP 2: paste your Google Maps JavaScript API key here.
+  // -----------------------------------------------------------------
+  const GOOGLE_MAPS_API_KEY = "AIzaSyDNTGxZo7faT9_09ywX-bohKlbCJEjUvig";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const PALETTE = ["#c8ff4d","#4fb6e8","#ff8a5b","#c08bff","#5be8b0","#ffd166","#ff6b9f","#7ddbff"];
+
+  let riderId = localStorage.getItem("rt_riderId");
+  if(!riderId){ riderId = crypto.randomUUID(); localStorage.setItem("rt_riderId", riderId); }
+
+  let groupCode = "", riderName = "";
+  let map = null, markers = {}, latestData = {}, fitDone = false, lastBounds = null;
+  let watchId = null, writeTimer = null, lastPos = null, wakeLock = null;
+  let groupRef = null, myRef = null;
+
+  function colorFor(id){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; return PALETTE[h % PALETTE.length]; }
+  function sanitizeCode(s){ return s.trim().toLowerCase().replace(/[^a-z0-9-]/g,"-").slice(0,24) || "default"; }
+  function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+  const nameInput = document.getElementById("name-input");
+  const groupInput = document.getElementById("group-input");
+  const statusMsg = document.getElementById("status-msg");
+  nameInput.value = localStorage.getItem("rt_name") || "";
+  groupInput.value = localStorage.getItem("rt_group") || "";
+
+  document.getElementById("join-btn").addEventListener("click", () => {
+    riderName = nameInput.value.trim().slice(0,20);
+    groupCode = sanitizeCode(groupInput.value);
+    if(!riderName){ statusMsg.textContent = "Enter your name first."; return; }
+    if(!navigator.geolocation){ statusMsg.textContent = "This browser can't access location."; return; }
+    localStorage.setItem("rt_name", riderName);
+    localStorage.setItem("rt_group", groupCode);
+    document.getElementById("join-screen").style.display = "none";
+    document.getElementById("map-screen").style.display = "block";
+    loadGoogleMaps();
+    startSharing();
+  });
+
+  document.getElementById("stop-btn").addEventListener("click", () => {
+    stopSharing();
+    document.getElementById("map-screen").style.display = "none";
+    document.getElementById("join-screen").style.display = "flex";
+  });
+
+  document.getElementById("center-btn").addEventListener("click", () => {
+    if(map && lastBounds) map.fitBounds(lastBounds, 80);
+  });
+
+  function startSharing(){
+    groupRef = ref(db, `groups/${groupCode}/riders`);
+    myRef = ref(db, `groups/${groupCode}/riders/${riderId}`);
+    onDisconnect(myRef).remove();
+
+    watchId = navigator.geolocation.watchPosition(
+      pos => { lastPos = pos; },
+      err => { statusMsg.textContent = "Location error: " + err.message; },
+      { enableHighAccuracy:true, maximumAge:4000, timeout:15000 }
+    );
+
+    // Write to Firebase on a fixed cadence rather than on every GPS tick —
+    // keeps writes (and Firebase usage) predictable regardless of how often
+    // the device reports a new fix.
+    writeTimer = setInterval(() => {
+      if(!lastPos) return;
+      set(myRef, {
+        name: riderName,
+        lat: lastPos.coords.latitude,
+        lng: lastPos.coords.longitude,
+        heading: lastPos.coords.heading ?? null,
+        speed: lastPos.coords.speed ?? null,
+        ts: Date.now()
+      });
+    }, 4000);
+
+    onValue(groupRef, snap => { latestData = snap.val() || {}; renderRiders(); });
+
+    if("wakeLock" in navigator){
+      navigator.wakeLock.request("screen").then(l => wakeLock = l).catch(()=>{});
+    }
+  }
+
+  function stopSharing(){
+    if(watchId !== null) navigator.geolocation.clearWatch(watchId);
+    if(writeTimer) clearInterval(writeTimer);
+    if(myRef) remove(myRef);
+    if(wakeLock) wakeLock.release().catch(()=>{});
+    Object.values(markers).forEach(m => m.setMap(null));
+    markers = {}; fitDone = false; lastPos = null;
+  }
+
+  function renderRiders(){
+    if(!map) return;
+    const bounds = new google.maps.LatLngBounds();
+    const list = document.getElementById("rider-list");
+    list.innerHTML = "";
+
+    Object.entries(latestData).forEach(([id, r]) => {
+      const pos = { lat: r.lat, lng: r.lng };
+      bounds.extend(pos);
+      const isMe = id === riderId;
+      const color = colorFor(id);
+
+      if(!markers[id]){
+        markers[id] = new google.maps.Marker({
+          map, position: pos,
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: isMe?11:9, fillColor:color, fillOpacity:1, strokeColor:"#12161a", strokeWeight: isMe?3:2 },
+          label: { text:(r.name||"?").slice(0,1).toUpperCase(), color:"#12161a", fontWeight:"700", fontSize:"11px" },
+          title: r.name
+        });
+      } else {
+        markers[id].setPosition(pos);
+      }
+
+      const stale = Date.now() - r.ts > 90000;
+      markers[id].setOpacity(stale ? 0.35 : 1);
+
+      const secsAgo = Math.max(0, Math.round((Date.now() - r.ts)/1000));
+      const row = document.createElement("div");
+      row.className = "rider-row" + (stale ? " offline" : "");
+      row.innerHTML = `<span class="dot" style="background:${color}"></span>
+        <span class="rider-name">${esc(r.name||"Rider")}${isMe ? " (you)" : ""}</span>
+        <span class="rider-time">${stale ? "offline" : secsAgo + "s ago"}</span>`;
+      list.appendChild(row);
+    });
+
+    Object.keys(markers).forEach(id => {
+      if(!latestData[id]){ markers[id].setMap(null); delete markers[id]; }
+    });
+
+    if(Object.keys(latestData).length){
+      lastBounds = bounds;
+      if(!fitDone){ map.fitBounds(bounds, 80); fitDone = true; }
+    }
+  }
+
+  setInterval(() => renderRiders(), 5000); // keeps "Xs ago" / offline state current
+
+  function initMap(){
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 31.634, lng: 74.872 }, // Amritsar — change if your rides start elsewhere
+      zoom: 12,
+      disableDefaultUI: true,
+      zoomControl: true,
+      styles: [
+        { elementType:"geometry", stylers:[{color:"#1c2227"}] },
+        { elementType:"labels.text.fill", stylers:[{color:"#8fa19a"}] },
+        { elementType:"labels.text.stroke", stylers:[{color:"#12161a"}] },
+        { featureType:"road", elementType:"geometry", stylers:[{color:"#2a3137"}] },
+        { featureType:"water", elementType:"geometry", stylers:[{color:"#16373f"}] },
+        { featureType:"poi", stylers:[{visibility:"off"}] }
+      ]
+    });
+    renderRiders();
+  }
+
+  let mapsLoading = false;
+  function loadGoogleMaps(){
+    if(mapsLoading || window.google) { if(window.google) initMap(); return; }
+    mapsLoading = true;
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+    script.async = true;
+    script.onload = initMap;
+    script.onerror = () => { statusMsg.textContent = "Google Maps failed to load — check your API key."; };
+    document.head.appendChild(script);
+  }
+</script>
+</body>
+</html>
