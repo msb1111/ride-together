@@ -36,10 +36,14 @@
   #search-bar{position:absolute;top:14px;left:14px;right:14px;max-width:280px;}
   #search-bar input{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(28,34,39,.85);backdrop-filter:blur(6px);color:var(--text);font-size:14px;}
 
-  #route-info{display:none;position:absolute;top:58px;left:14px;right:14px;max-width:280px;background:rgba(28,34,39,.85);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;}
-  #route-info a{color:var(--accent);text-decoration:none;font-size:12px;}
+  #dest-box{display:none;position:absolute;top:58px;left:14px;right:14px;max-width:280px;background:rgba(28,34,39,.7);backdrop-filter:blur(6px);border:1px solid rgba(50,58,64,.7);border-radius:12px;padding:10px 12px;}
+  #route-text{font-size:13px;margin-bottom:12px;min-height:16px;}
+  #dest-actions{display:flex;gap:20px;}
+  #dest-actions a, #dest-actions button{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:9px 6px;font-size:12px;font-weight:700;text-align:center;text-decoration:none;cursor:pointer;}
+  #dest-actions a{color:var(--accent);}
+  #dest-actions button{color:var(--danger);}
 
-  #panel{position:absolute;top:108px;left:14px;right:14px;max-width:240px;background:rgba(28,34,39,.55);backdrop-filter:blur(4px);border:1px solid rgba(50,58,64,.6);border-radius:12px;padding:10px 12px;}
+  #panel{position:absolute;top:150px;left:14px;right:14px;max-width:240px;background:rgba(28,34,39,.55);backdrop-filter:blur(4px);border:1px solid rgba(50,58,64,.6);border-radius:12px;padding:10px 12px;}
   #panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px;opacity:.85;}
   .rider-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;}
   .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
@@ -47,10 +51,11 @@
   .rider-time{color:var(--muted);font-size:11px;}
   .offline{opacity:.4;}
 
-  #stop-btn{position:absolute;bottom:18px;left:14px;right:90px;max-width:240px;background:var(--danger);color:#1c1c1c;}
+  #share-toggle-btn{position:absolute;bottom:18px;left:14px;right:90px;max-width:240px;background:var(--accent);color:var(--accent-ink);}
+  #share-toggle-btn.sharing{background:var(--danger);color:#1c1c1c;}
   #center-btn{position:absolute;bottom:18px;right:14px;width:56px;height:56px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--accent);font-size:20px;padding:0;}
   @media(min-width:640px){
-    #stop-btn{left:14px;right:auto;}
+    #share-toggle-btn{left:14px;right:auto;}
   }
 </style>
 </head>
@@ -62,7 +67,7 @@
     <h1>See your group, live.</h1>
     <p class="sub">Everyone who opens this page with the same group code shows up on the same map.</p>
     <label for="name-input">Your name</label>
-    <input id="name-input" maxlength="30" placeholder="e.g. Donald Trump">
+    <input id="name-input" maxlength="30" placeholder="e.g. Doland Trump">
     <label for="group-input">Group code</label>
     <input id="group-input" maxlength="24" placeholder="e.g. amritsar-sunday-ride">
     <label for="access-input">Access code</label>
@@ -77,13 +82,19 @@
   <div id="search-bar">
     <input id="search-input" placeholder="Search a place…">
   </div>
-  <div id="route-info"></div>
+  <div id="dest-box">
+    <div id="route-text"></div>
+    <div id="dest-actions">
+      <a id="nav-link" href="#" target="_blank" rel="noopener">Navigate ↗</a>
+      <button id="clear-dest-btn" type="button">Clear meeting point</button>
+    </div>
+  </div>
   <div id="panel">
     <h2>On this ride</h2>
     <div id="rider-list"></div>
   </div>
   <button id="center-btn" title="Center on group">⌖</button>
-  <button id="stop-btn">Stop sharing</button>
+  <button id="share-toggle-btn">Start Sharing</button>
 </div>
 
 <script type="module">
@@ -121,10 +132,11 @@
   if(!riderId){ riderId = crypto.randomUUID(); localStorage.setItem("rt_riderId", riderId); }
 
   let groupCode = "", riderName = "";
-  let map = null, markers = {}, latestData = {}, latestColors = {}, fitDone = false, lastBounds = null;
+  let map = null, markers = {}, latestData = {}, latestColors = {}, lastBounds = null;
+  let autoFit = false, lastAutoFitAt = 0, suppressAutoFitToggle = false, isSharing = false;
   let watchId = null, writeTimer = null, lastPos = null, wakeLock = null;
-  let groupRootRef = null, myRef = null, myColorRef = null, latestDestination = null;
-  let destinationMarker = null, destinationInfo = null;
+  let groupRootRef = null, myRef = null, myColorRef = null, groupUnsubscribe = null, latestDestination = null;
+  let destinationMarker = null;
   let directionsService = null, directionsRenderer = null, lastRouteOrigin = null, lastDestTs = null;
 
   function haversineMeters(a, b){
@@ -135,10 +147,10 @@
   }
 
   function updateRoute(force){
-    const infoBox = document.getElementById("route-info");
+    const textEl = document.getElementById("route-text");
     if(!map || !directionsService || !latestDestination || !lastPos){
       if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
-      infoBox.style.display = "none";
+      if(textEl) textEl.textContent = latestDestination ? "Calculating route…" : "";
       return;
     }
     const origin = { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude };
@@ -153,8 +165,7 @@
       if(status === "OK"){
         directionsRenderer.setDirections(result);
         const leg = result.routes[0].legs[0];
-        infoBox.innerHTML = `${leg.distance.text} · ${leg.duration.text} to ${esc(latestDestination.name || "meeting point")}`;
-        infoBox.style.display = "block";
+        textEl.textContent = `${leg.distance.text} · ${leg.duration.text} to ${latestDestination.name || "meeting point"}`;
       }
     });
   }
@@ -193,25 +204,81 @@
     localStorage.setItem("rt_group", groupCode);
     document.getElementById("join-screen").style.display = "none";
     document.getElementById("map-screen").style.display = "block";
+    startRideSession();
     loadGoogleMaps();
-    startSharing();
   });
 
-  document.getElementById("stop-btn").addEventListener("click", () => {
-    stopSharing();
-    document.getElementById("map-screen").style.display = "none";
-    document.getElementById("join-screen").style.display = "flex";
+  document.getElementById("share-toggle-btn").addEventListener("click", () => {
+    if(isSharing) stopSharing();
+    else startSharing();
   });
 
   document.getElementById("center-btn").addEventListener("click", () => {
-    if(map && lastBounds){
-      map.fitBounds(lastBounds, 80);
-      google.maps.event.addListenerOnce(map, "idle", () => { if(map.getZoom() > 16) map.setZoom(16); });
-    }
+    autoFit = true;
+    lastAutoFitAt = Date.now();
+    fitToGroup();
+    updateCenterBtnUI();
   });
 
-  async function startSharing(){
+  function updateShareButton(){
+    const btn = document.getElementById("share-toggle-btn");
+    btn.textContent = isSharing ? "Stop Sharing" : "Start Sharing";
+    btn.classList.toggle("sharing", isSharing);
+  }
+
+  function updateCenterBtnUI(){
+    const btn = document.getElementById("center-btn");
+    if(!btn) return;
+    if(autoFit){
+      btn.style.background = "var(--accent)";
+      btn.style.color = "var(--accent-ink)";
+      btn.title = "Auto-zoom is on";
+    } else {
+      btn.style.background = "var(--surface)";
+      btn.style.color = "var(--accent)";
+      btn.title = "Tap to auto-zoom to the group";
+    }
+  }
+
+  function fitToGroup(){
+    if(!map || !lastBounds) return;
+    suppressAutoFitToggle = true;
+    map.fitBounds(lastBounds, 80);
+    google.maps.event.addListenerOnce(map, "idle", () => {
+      if(map.getZoom() > 16) map.setZoom(16);
+      setTimeout(() => { suppressAutoFitToggle = false; }, 300);
+    });
+  }
+
+  function maybeAutoFit(){
+    if(!autoFit) return;
+    const now = Date.now();
+    if(now - lastAutoFitAt < 6000) return;
+    lastAutoFitAt = now;
+    fitToGroup();
+  }
+
+  function startRideSession(){
     groupRootRef = ref(db, `groups/${groupCode}`);
+    if(groupUnsubscribe) groupUnsubscribe();
+    groupUnsubscribe = onValue(groupRootRef, snap => {
+      const val = snap.val() || {};
+      latestData = val.riders || {};
+      latestColors = val.colors || {};
+      latestDestination = val.destination || null;
+      renderRiders();
+      renderDestination();
+    });
+    isSharing = false;
+    autoFit = false;
+    updateShareButton();
+    updateCenterBtnUI();
+  }
+
+  async function startSharing(){
+    if(isSharing) return;
+    if(!navigator.geolocation){ statusMsg.textContent = "This browser can't access location."; return; }
+
     myRef = ref(db, `groups/${groupCode}/riders/${riderId}`);
     myColorRef = ref(db, `groups/${groupCode}/colors/${riderId}`);
     onDisconnect(myRef).remove();
@@ -225,14 +292,8 @@
       await set(myColorRef, idx);
     } catch(e){ /* non-fatal — falls back to hash-based colour */ }
 
-    watchId = navigator.geolocation.watchPosition(
-      pos => { lastPos = pos; },
-      err => { statusMsg.textContent = "Location error: " + err.message; },
-      { enableHighAccuracy:true, maximumAge:4000, timeout:15000 }
-    );
-
-    writeTimer = setInterval(() => {
-      if(!lastPos) return;
+    function writeMyLocation(){
+      if(!lastPos || !myRef) return;
       set(myRef, {
         name: riderName,
         lat: lastPos.coords.latitude,
@@ -241,16 +302,22 @@
         speed: lastPos.coords.speed ?? null,
         ts: Date.now()
       });
-    }, 4000);
+    }
 
-    onValue(groupRootRef, snap => {
-      const val = snap.val() || {};
-      latestData = val.riders || {};
-      latestColors = val.colors || {};
-      latestDestination = val.destination || null;
-      renderRiders();
-      renderDestination();
-    });
+    watchId = navigator.geolocation.watchPosition(
+      pos => { lastPos = pos; writeMyLocation(); },
+      err => { statusMsg.textContent = "Location error: " + err.message; },
+      { enableHighAccuracy:true, maximumAge:4000, timeout:15000 }
+    );
+
+    writeTimer = setInterval(writeMyLocation, 4000);
+
+    isSharing = true;
+    autoFit = true;
+    lastAutoFitAt = 0;
+    updateShareButton();
+    updateCenterBtnUI();
+    maybeAutoFit();
 
     if("wakeLock" in navigator){
       navigator.wakeLock.request("screen").then(l => wakeLock = l).catch(()=>{});
@@ -259,11 +326,18 @@
 
   function stopSharing(){
     if(watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
     if(writeTimer) clearInterval(writeTimer);
+    writeTimer = null;
     if(myRef) remove(myRef);
+    myRef = null;
     if(wakeLock) wakeLock.release().catch(()=>{});
-    Object.values(markers).forEach(m => m.setMap(null));
-    markers = {}; fitDone = false; lastPos = null;
+    wakeLock = null;
+    lastPos = null;
+    isSharing = false;
+    autoFit = false;
+    updateShareButton();
+    updateCenterBtnUI();
   }
 
   function renderRiders(){
@@ -308,11 +382,7 @@
 
     if(Object.keys(latestData).length){
       lastBounds = bounds;
-      if(!fitDone){
-        map.fitBounds(bounds, 80);
-        google.maps.event.addListenerOnce(map, "idle", () => { if(map.getZoom() > 16) map.setZoom(16); });
-        fitDone = true;
-      }
+      maybeAutoFit();
     }
   }
 
@@ -320,9 +390,10 @@
 
   function renderDestination(){
     if(!map) return;
+    const box = document.getElementById("dest-box");
     if(!latestDestination){
       if(destinationMarker){ destinationMarker.setMap(null); destinationMarker = null; }
-      if(destinationInfo) destinationInfo.close();
+      box.style.display = "none";
       lastRouteOrigin = null; lastDestTs = null;
       updateRoute(false);
       return;
@@ -339,29 +410,18 @@
 
     if(!destinationMarker){
       destinationMarker = new google.maps.Marker({ map, position: pos, title: label });
-      destinationInfo = new google.maps.InfoWindow();
-      destinationMarker.addListener("click", () => {
-        destinationInfo.setContent(
-          `<div style="color:#12161a;font-size:13px;max-width:200px;">
-             <strong>${esc(label)}</strong><br>
-             <a href="${navUrl}" target="_blank" rel="noopener">Open full navigation ↗</a><br>
-             <a href="#" id="clear-dest-link">Clear for everyone</a>
-           </div>`
-        );
-        destinationInfo.open(map, destinationMarker);
-        google.maps.event.addListenerOnce(destinationInfo, "domready", () => {
-          const link = document.getElementById("clear-dest-link");
-          if(link) link.addEventListener("click", e => {
-            e.preventDefault();
-            remove(ref(db, `groups/${groupCode}/destination`));
-            destinationInfo.close();
-          });
-        });
-      });
     } else {
       destinationMarker.setPosition(pos);
       destinationMarker.setTitle(label);
     }
+
+    box.style.display = "block";
+    document.getElementById("nav-link").href = navUrl;
+    document.getElementById("clear-dest-btn").onclick = () => {
+      if(confirm(`Clear "${label}" for everyone on the ride? This can't be undone.`)){
+        remove(ref(db, `groups/${groupCode}/destination`));
+      }
+    };
   }
 
   function setupSearch(){
@@ -372,6 +432,8 @@
       const place = autocomplete.getPlace();
       if(!place.geometry) return;
       const loc = place.geometry.location;
+      autoFit = false;
+      updateCenterBtnUI();
       map.panTo(loc);
       map.setZoom(15);
       set(ref(db, `groups/${groupCode}/destination`), {
@@ -413,6 +475,17 @@
       map, suppressMarkers: true,
       polylineOptions: { strokeColor: "#c8ff4d", strokeWeight: 5, strokeOpacity: 0.85 }
     });
+    map.addListener("dragstart", () => {
+      autoFit = false;
+      updateCenterBtnUI();
+    });
+    map.addListener("zoom_changed", () => {
+      if(!suppressAutoFitToggle){
+        autoFit = false;
+        updateCenterBtnUI();
+      }
+    });
+    updateCenterBtnUI();
     renderRiders();
     renderDestination();
     setupSearch();
