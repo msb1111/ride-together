@@ -36,7 +36,10 @@
   #search-bar{position:absolute;top:14px;left:14px;right:14px;max-width:280px;}
   #search-bar input{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(28,34,39,.85);backdrop-filter:blur(6px);color:var(--text);font-size:14px;}
 
-  #panel{position:absolute;top:66px;left:14px;right:14px;max-width:240px;background:rgba(28,34,39,.55);backdrop-filter:blur(4px);border:1px solid rgba(50,58,64,.6);border-radius:12px;padding:10px 12px;}
+  #route-info{display:none;position:absolute;top:58px;left:14px;right:14px;max-width:280px;background:rgba(28,34,39,.85);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;}
+  #route-info a{color:var(--accent);text-decoration:none;font-size:12px;}
+
+  #panel{position:absolute;top:108px;left:14px;right:14px;max-width:240px;background:rgba(28,34,39,.55);backdrop-filter:blur(4px);border:1px solid rgba(50,58,64,.6);border-radius:12px;padding:10px 12px;}
   #panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px;opacity:.85;}
   .rider-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;}
   .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
@@ -59,7 +62,7 @@
     <h1>See your group, live.</h1>
     <p class="sub">Everyone who opens this page with the same group code shows up on the same map.</p>
     <label for="name-input">Your name</label>
-    <input id="name-input" maxlength="30" placeholder="e.g. Manjyot Singh">
+    <input id="name-input" maxlength="30" placeholder="e.g. Donald Trump">
     <label for="group-input">Group code</label>
     <input id="group-input" maxlength="24" placeholder="e.g. amritsar-sunday-ride">
     <label for="access-input">Access code</label>
@@ -74,6 +77,7 @@
   <div id="search-bar">
     <input id="search-input" placeholder="Search a place…">
   </div>
+  <div id="route-info"></div>
   <div id="panel">
     <h2>On this ride</h2>
     <div id="rider-list"></div>
@@ -119,7 +123,41 @@
   let groupCode = "", riderName = "";
   let map = null, markers = {}, latestData = {}, latestColors = {}, fitDone = false, lastBounds = null;
   let watchId = null, writeTimer = null, lastPos = null, wakeLock = null;
-  let groupRootRef = null, myRef = null, myColorRef = null, searchMarker = null;
+  let groupRootRef = null, myRef = null, myColorRef = null, latestDestination = null;
+  let destinationMarker = null, destinationInfo = null;
+  let directionsService = null, directionsRenderer = null, lastRouteOrigin = null, lastDestTs = null;
+
+  function haversineMeters(a, b){
+    const R = 6371000, toRad = d => d * Math.PI/180;
+    const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+    const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
+
+  function updateRoute(force){
+    const infoBox = document.getElementById("route-info");
+    if(!map || !directionsService || !latestDestination || !lastPos){
+      if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+      infoBox.style.display = "none";
+      return;
+    }
+    const origin = { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude };
+    if(!force && lastRouteOrigin && haversineMeters(origin, lastRouteOrigin) < 150) return;
+    lastRouteOrigin = origin;
+
+    directionsService.route({
+      origin,
+      destination: { lat: latestDestination.lat, lng: latestDestination.lng },
+      travelMode: google.maps.TravelMode.DRIVING
+    }, (result, status) => {
+      if(status === "OK"){
+        directionsRenderer.setDirections(result);
+        const leg = result.routes[0].legs[0];
+        infoBox.innerHTML = `${leg.distance.text} · ${leg.duration.text} to ${esc(latestDestination.name || "meeting point")}`;
+        infoBox.style.display = "block";
+      }
+    });
+  }
 
   function hashIndex(id){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; return h % PALETTE.length; }
   function colorFor(id){
@@ -209,7 +247,9 @@
       const val = snap.val() || {};
       latestData = val.riders || {};
       latestColors = val.colors || {};
+      latestDestination = val.destination || null;
       renderRiders();
+      renderDestination();
     });
 
     if("wakeLock" in navigator){
@@ -278,6 +318,52 @@
 
   setInterval(() => renderRiders(), 5000);
 
+  function renderDestination(){
+    if(!map) return;
+    if(!latestDestination){
+      if(destinationMarker){ destinationMarker.setMap(null); destinationMarker = null; }
+      if(destinationInfo) destinationInfo.close();
+      lastRouteOrigin = null; lastDestTs = null;
+      updateRoute(false);
+      return;
+    }
+    const pos = { lat: latestDestination.lat, lng: latestDestination.lng };
+    const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${pos.lat},${pos.lng}&travelmode=driving`;
+    const label = latestDestination.name || "Meeting point";
+
+    if(latestDestination.ts !== lastDestTs){
+      lastDestTs = latestDestination.ts;
+      lastRouteOrigin = null;
+      updateRoute(true);
+    }
+
+    if(!destinationMarker){
+      destinationMarker = new google.maps.Marker({ map, position: pos, title: label });
+      destinationInfo = new google.maps.InfoWindow();
+      destinationMarker.addListener("click", () => {
+        destinationInfo.setContent(
+          `<div style="color:#12161a;font-size:13px;max-width:200px;">
+             <strong>${esc(label)}</strong><br>
+             <a href="${navUrl}" target="_blank" rel="noopener">Open full navigation ↗</a><br>
+             <a href="#" id="clear-dest-link">Clear for everyone</a>
+           </div>`
+        );
+        destinationInfo.open(map, destinationMarker);
+        google.maps.event.addListenerOnce(destinationInfo, "domready", () => {
+          const link = document.getElementById("clear-dest-link");
+          if(link) link.addEventListener("click", e => {
+            e.preventDefault();
+            remove(ref(db, `groups/${groupCode}/destination`));
+            destinationInfo.close();
+          });
+        });
+      });
+    } else {
+      destinationMarker.setPosition(pos);
+      destinationMarker.setTitle(label);
+    }
+  }
+
   function setupSearch(){
     const input = document.getElementById("search-input");
     const autocomplete = new google.maps.places.Autocomplete(input, { fields:["geometry","name"] });
@@ -285,10 +371,12 @@
     autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace();
       if(!place.geometry) return;
-      map.panTo(place.geometry.location);
+      const loc = place.geometry.location;
+      map.panTo(loc);
       map.setZoom(15);
-      if(searchMarker) searchMarker.setMap(null);
-      searchMarker = new google.maps.Marker({ map, position: place.geometry.location, title: place.name });
+      set(ref(db, `groups/${groupCode}/destination`), {
+        lat: loc.lat(), lng: loc.lng(), name: place.name || input.value, ts: Date.now()
+      });
     });
   }
 
@@ -320,9 +408,16 @@
       zoomControl: true,
       styles: getMapStyle()
     });
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+      map, suppressMarkers: true,
+      polylineOptions: { strokeColor: "#c8ff4d", strokeWeight: 5, strokeOpacity: 0.85 }
+    });
     renderRiders();
+    renderDestination();
     setupSearch();
     setInterval(() => { if(map) map.setOptions({ styles: getMapStyle() }); }, 5*60*1000);
+    setInterval(() => updateRoute(false), 30*1000);
   }
 
   let mapsLoading = false;
