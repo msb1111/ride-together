@@ -33,35 +33,29 @@
   #map-screen{display:none;height:100%;position:relative;}
   #map{height:100%;width:100%;}
 
-  #search-bar{position:absolute;top:14px;left:14px;right:14px;max-width:390px;z-index:5;}
-  #search-bar input{padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(28,34,39,.92);backdrop-filter:blur(8px);color:var(--text);font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.18);}
+  #search-bar{position:absolute;top:14px;left:14px;right:14px;max-width:320px;z-index:5;}
+  #search-bar input{padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(28,34,39,.92);backdrop-filter:blur(6px);color:var(--text);font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.18);}
 
-  #dest-box{display:none;position:absolute;top:70px;left:14px;right:14px;max-width:390px;background:rgba(28,34,39,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.24);z-index:4;}
-  #route-text{font-size:15px;line-height:1.35;margin-bottom:8px;min-height:18px;color:var(--text);font-weight:600;}
-  #next-turn-text{font-size:14px;line-height:1.35;color:var(--accent);margin-bottom:14px;min-height:18px;font-weight:700;}
-  #dest-actions{display:flex;gap:10px;}
-  #dest-actions a, #dest-actions button{flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 8px;font-size:13px;line-height:1.2;font-weight:800;text-align:center;text-decoration:none;cursor:pointer;}
+  #dest-box{display:none;position:absolute;top:58px;left:14px;right:14px;max-width:320px;background:rgba(28,34,39,.94);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:9px 11px;box-shadow:0 8px 24px rgba(0,0,0,.24);z-index:4;}
+  #route-text{font-size:13px;line-height:1.22;margin-bottom:8px;min-height:16px;font-weight:700;}
+  #dest-actions{display:flex;gap:8px;}
+  #dest-actions a, #dest-actions button{flex:1;min-height:34px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:6px 7px;font-size:11px;line-height:1.05;font-weight:800;text-align:center;text-decoration:none;cursor:pointer;}
   #dest-actions a{color:var(--accent);}
   #dest-actions button{color:var(--danger);}
 
-  #panel{position:absolute;top:84px;left:14px;right:14px;max-width:390px;background:rgba(28,34,39,.9);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.22);z-index:3;}
-  #map-screen.destination-active #panel{top:238px;}
-  #panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 10px;opacity:.95;font-weight:800;}
-  .rider-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:15px;color:var(--text);}
-  .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.08);}
-  .rider-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
-  .rider-time{color:var(--muted);font-size:12px;white-space:nowrap;}
-  .offline{opacity:.35;}
+  #panel{position:absolute;top:174px;left:14px;right:14px;max-width:320px;background:rgba(28,34,39,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:9px 11px;box-shadow:0 8px 24px rgba(0,0,0,.22);z-index:3;}
+  #panel h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 7px;opacity:.9;font-weight:800;}
+  .rider-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;}
+  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .rider-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
+  .rider-row.online .rider-name{color:var(--accent);}
+  .rider-row.offline .rider-name{color:var(--danger);}
 
-  #share-toggle-btn{position:absolute;bottom:18px;left:14px;right:90px;max-width:300px;background:var(--accent);color:var(--accent-ink);box-shadow:0 8px 24px rgba(0,0,0,.24);z-index:5;}
+  #share-toggle-btn{position:absolute;bottom:16px;left:14px;width:calc(100% - 104px);max-width:220px;min-height:42px;padding:9px 12px;border-radius:9px;background:var(--accent);color:var(--accent-ink);box-shadow:0 8px 24px rgba(0,0,0,.24);z-index:5;font-size:14px;}
   #share-toggle-btn.sharing{background:var(--danger);color:#1c1c1c;}
-  #center-btn{position:absolute;bottom:18px;right:14px;width:56px;height:56px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--accent);font-size:20px;padding:0;box-shadow:0 8px 24px rgba(0,0,0,.24);z-index:5;}
-  @media(max-width:420px){
-    #dest-actions a, #dest-actions button{font-size:12px;}
-    #map-screen.destination-active #panel{top:246px;}
-  }
+  #center-btn{position:absolute;bottom:16px;right:14px;width:52px;height:52px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--accent);font-size:19px;padding:0;box-shadow:0 8px 24px rgba(0,0,0,.24);z-index:5;}
   @media(min-width:640px){
-    #share-toggle-btn{left:14px;right:auto;}
+    #share-toggle-btn{left:14px;right:auto;width:200px;}
   }
 </style>
 </head>
@@ -90,9 +84,8 @@
   </div>
   <div id="dest-box">
     <div id="route-text"></div>
-    <div id="next-turn-text"></div>
     <div id="dest-actions">
-      <a id="nav-link" href="#" target="_blank" rel="noopener">Navigate on Google Maps</a>
+      <a id="nav-link" href="#" target="_blank" rel="noopener">Google Maps</a>
       <button id="clear-dest-btn" type="button">Clear Destination</button>
     </div>
   </div>
@@ -145,7 +138,6 @@
   let groupRootRef = null, myRef = null, myColorRef = null, groupUnsubscribe = null, latestDestination = null;
   let destinationMarker = null;
   let directionsService = null, directionsRenderer = null, lastRouteOrigin = null, lastDestTs = null;
-  let latestRouteLeg = null, currentStepIndex = 0;
 
   function haversineMeters(a, b){
     const R = 6371000, toRad = d => d * Math.PI/180;
@@ -154,65 +146,11 @@
     return 2 * R * Math.asin(Math.sqrt(x));
   }
 
-  function stripHtml(html){
-    const d = document.createElement("div");
-    d.innerHTML = html || "";
-    return (d.textContent || d.innerText || "").replace(/\s+/g, " ").trim();
-  }
-
-  function requestOneShotLocation(reason){
-    if(!navigator.geolocation || isSharing) return;
-    navigator.geolocation.getCurrentPosition(
-      pos => { lastPos = pos; updateRoute(true); updateNextTurn(); },
-      err => {
-        const textEl = document.getElementById("route-text");
-        if(textEl && latestDestination) textEl.textContent = "Location needed to calculate route. Press Start Sharing or allow location.";
-      },
-      { enableHighAccuracy:true, maximumAge:10000, timeout:12000 }
-    );
-  }
-
-  function updateNextTurn(){
-    const turnEl = document.getElementById("next-turn-text");
-    if(!turnEl) return;
-    if(!latestRouteLeg || !latestRouteLeg.steps || !latestRouteLeg.steps.length || !lastPos){
-      turnEl.textContent = latestDestination ? "Next turn will appear once your route is ready." : "";
-      return;
-    }
-    const here = { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude };
-
-    while(currentStepIndex < latestRouteLeg.steps.length - 1){
-      const stepEnd = latestRouteLeg.steps[currentStepIndex].end_location;
-      const stepEndPos = { lat: stepEnd.lat(), lng: stepEnd.lng() };
-      if(haversineMeters(here, stepEndPos) < 55) currentStepIndex++;
-      else break;
-    }
-
-    const step = latestRouteLeg.steps[currentStepIndex];
-    const stepStart = step.start_location;
-    const stepEnd = step.end_location;
-    const distToStepEnd = haversineMeters(here, { lat: stepEnd.lat(), lng: stepEnd.lng() });
-    const distToStepStart = haversineMeters(here, { lat: stepStart.lat(), lng: stepStart.lng() });
-    const shownDistance = currentStepIndex === 0 ? Math.min(distToStepEnd, step.distance.value) : distToStepEnd;
-    const distText = shownDistance >= 1000 ? (shownDistance/1000).toFixed(1) + " km" : Math.round(shownDistance/10)*10 + " m";
-    const instruction = stripHtml(step.instructions) || "Continue";
-
-    if(currentStepIndex >= latestRouteLeg.steps.length - 1 && distToStepEnd < 80){
-      turnEl.textContent = "You are near the destination.";
-    } else {
-      turnEl.textContent = `Next: ${instruction} in ${distText}`;
-    }
-  }
-
   function updateRoute(force){
     const textEl = document.getElementById("route-text");
     if(!map || !directionsService || !latestDestination || !lastPos){
       if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
-      latestRouteLeg = null;
-      currentStepIndex = 0;
-      updateNextTurn();
       if(textEl) textEl.textContent = latestDestination ? "Calculating route…" : "";
-      if(latestDestination && !lastPos) requestOneShotLocation("route");
       return;
     }
     const origin = { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude };
@@ -227,13 +165,7 @@
       if(status === "OK"){
         directionsRenderer.setDirections(result);
         const leg = result.routes[0].legs[0];
-        latestRouteLeg = leg;
-        currentStepIndex = 0;
-        textEl.textContent = `${leg.distance.text} · ${leg.duration.text} to ${latestDestination.name || "destination"}`;
-        updateNextTurn();
-      } else {
-        latestRouteLeg = null;
-        updateNextTurn();
+        textEl.textContent = `${leg.distance.text} · ${leg.duration.text} to ${latestDestination.name || "meeting point"}`;
       }
     });
   }
@@ -278,7 +210,10 @@
 
   document.getElementById("share-toggle-btn").addEventListener("click", () => {
     if(isSharing) stopSharing();
-    else startSharing();
+    else {
+      enterFullscreen();
+      startSharing();
+    }
   });
 
   document.getElementById("center-btn").addEventListener("click", () => {
@@ -286,6 +221,25 @@
     lastAutoFitAt = Date.now();
     fitToGroup();
     updateCenterBtnUI();
+  });
+
+  function enterFullscreen(){
+    const el = document.documentElement;
+    if(document.fullscreenElement) return;
+    if(el.requestFullscreen){
+      el.requestFullscreen().catch(()=>{});
+    }
+  }
+
+  async function requestWakeLock(){
+    if(!("wakeLock" in navigator)) return;
+    try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){}
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if(document.visibilityState === "visible" && isSharing && !wakeLock){
+      requestWakeLock();
+    }
   });
 
   function updateShareButton(){
@@ -338,8 +292,7 @@
       renderDestination();
     });
     isSharing = false;
-    autoFit = true;
-    lastAutoFitAt = 0;
+    autoFit = false;
     updateShareButton();
     updateCenterBtnUI();
   }
@@ -374,7 +327,7 @@
     }
 
     watchId = navigator.geolocation.watchPosition(
-      pos => { lastPos = pos; writeMyLocation(); updateRoute(false); updateNextTurn(); },
+      pos => { lastPos = pos; writeMyLocation(); },
       err => { statusMsg.textContent = "Location error: " + err.message; },
       { enableHighAccuracy:true, maximumAge:4000, timeout:15000 }
     );
@@ -388,9 +341,7 @@
     updateCenterBtnUI();
     maybeAutoFit();
 
-    if("wakeLock" in navigator){
-      navigator.wakeLock.request("screen").then(l => wakeLock = l).catch(()=>{});
-    }
+    requestWakeLock();
   }
 
   function stopSharing(){
@@ -404,8 +355,7 @@
     wakeLock = null;
     lastPos = null;
     isSharing = false;
-    autoFit = true;
-    lastAutoFitAt = 0;
+    autoFit = false;
     updateShareButton();
     updateCenterBtnUI();
   }
@@ -437,12 +387,10 @@
       const stale = Date.now() - r.ts > 90000;
       markers[id].setOpacity(stale ? 0.35 : 1);
 
-      const secsAgo = Math.max(0, Math.round((Date.now() - r.ts)/1000));
       const row = document.createElement("div");
-      row.className = "rider-row" + (stale ? " offline" : "");
+      row.className = "rider-row " + (stale ? "offline" : "online");
       row.innerHTML = `<span class="dot" style="background:${color}"></span>
-        <span class="rider-name">${esc(r.name||"Rider")}${isMe ? " (you)" : ""}</span>
-        <span class="rider-time">${stale ? "offline" : secsAgo + "s ago"}</span>`;
+        <span class="rider-name">${esc(r.name||"Rider")}${isMe ? " (you)" : ""}</span>`;
       list.appendChild(row);
     });
 
@@ -464,10 +412,8 @@
     if(!latestDestination){
       if(destinationMarker){ destinationMarker.setMap(null); destinationMarker = null; }
       box.style.display = "none";
-      document.getElementById("map-screen").classList.remove("destination-active");
-      lastRouteOrigin = null; lastDestTs = null; latestRouteLeg = null; currentStepIndex = 0;
+      lastRouteOrigin = null; lastDestTs = null;
       updateRoute(false);
-      updateNextTurn();
       return;
     }
     const pos = { lat: latestDestination.lat, lng: latestDestination.lng };
@@ -477,10 +423,7 @@
     if(latestDestination.ts !== lastDestTs){
       lastDestTs = latestDestination.ts;
       lastRouteOrigin = null;
-      latestRouteLeg = null;
-      currentStepIndex = 0;
       updateRoute(true);
-      if(!lastPos) requestOneShotLocation("destination");
     }
 
     if(!destinationMarker){
@@ -491,10 +434,9 @@
     }
 
     box.style.display = "block";
-    document.getElementById("map-screen").classList.add("destination-active");
     document.getElementById("nav-link").href = navUrl;
     document.getElementById("clear-dest-btn").onclick = () => {
-      if(confirm(`Clear destination "${label}" for everyone on the ride? This can't be undone.`)){
+      if(confirm(`Clear "${label}" for everyone on the ride? This can't be undone.`)){
         remove(ref(db, `groups/${groupCode}/destination`));
       }
     };
@@ -567,7 +509,6 @@
     setupSearch();
     setInterval(() => { if(map) map.setOptions({ styles: getMapStyle() }); }, 5*60*1000);
     setInterval(() => updateRoute(false), 30*1000);
-    setInterval(() => updateNextTurn(), 5000);
   }
 
   let mapsLoading = false;
