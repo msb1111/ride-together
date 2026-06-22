@@ -105,8 +105,8 @@
   // Change ACCESS_CODE whenever you want to invalidate the old one —
   // just edit + redeploy (git add, commit, push).
   // ---------------------------------------------------------------
-  const ACCESS_CODE = "changeme";
-  const ACCESS_CODE_EXPIRES = new Date("2026-12-31T23:59:59+05:30").getTime();
+  const ACCESS_CODE = "gilded-throttle-101";
+  const ACCESS_CODE_EXPIRES = new Date("2026-09-20T23:59:59+05:30").getTime();
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
@@ -292,23 +292,37 @@
     });
   }
 
+  const NIGHT_STYLE = [
+    { elementType:"geometry", stylers:[{color:"#1c2227"}] },
+    { elementType:"labels.text.fill", stylers:[{color:"#8fa19a"}] },
+    { elementType:"labels.text.stroke", stylers:[{color:"#12161a"}] },
+    { featureType:"road", elementType:"geometry", stylers:[{color:"#2a3137"}] },
+    { featureType:"water", elementType:"geometry", stylers:[{color:"#16373f"}] },
+    { featureType:"poi", stylers:[{visibility:"off"}] }
+  ];
+  const DAY_STYLE = [
+    { elementType:"geometry", stylers:[{color:"#f3f1ec"}] },
+    { elementType:"labels.text.fill", stylers:[{color:"#5b6470"}] },
+    { elementType:"labels.text.stroke", stylers:[{color:"#ffffff"}] },
+    { featureType:"road", elementType:"geometry", stylers:[{color:"#ffffff"}] },
+    { featureType:"road", elementType:"geometry.stroke", stylers:[{color:"#e0ddd5"}] },
+    { featureType:"water", elementType:"geometry", stylers:[{color:"#bfe0e8"}] },
+    { featureType:"poi", stylers:[{visibility:"off"}] }
+  ];
+  function isDaytime(){ const h = new Date().getHours(); return h >= 6 && h < 19; }
+  function getMapStyle(){ return isDaytime() ? DAY_STYLE : NIGHT_STYLE; }
+
   function initMap(){
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 31.634, lng: 74.872 },
       zoom: 12,
       disableDefaultUI: true,
       zoomControl: true,
-      styles: [
-        { elementType:"geometry", stylers:[{color:"#1c2227"}] },
-        { elementType:"labels.text.fill", stylers:[{color:"#8fa19a"}] },
-        { elementType:"labels.text.stroke", stylers:[{color:"#12161a"}] },
-        { featureType:"road", elementType:"geometry", stylers:[{color:"#2a3137"}] },
-        { featureType:"water", elementType:"geometry", stylers:[{color:"#16373f"}] },
-        { featureType:"poi", stylers:[{visibility:"off"}] }
-      ]
+      styles: getMapStyle()
     });
     renderRiders();
     setupSearch();
+    setInterval(() => { if(map) map.setOptions({ styles: getMapStyle() }); }, 5*60*1000);
   }
 
   let mapsLoading = false;
