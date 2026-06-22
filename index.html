@@ -37,7 +37,8 @@
   #search-bar input{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(28,34,39,.85);backdrop-filter:blur(6px);color:var(--text);font-size:14px;}
 
   #dest-box{display:none;position:absolute;top:58px;left:14px;right:14px;max-width:280px;background:rgba(28,34,39,.7);backdrop-filter:blur(6px);border:1px solid rgba(50,58,64,.7);border-radius:12px;padding:10px 12px;}
-  #route-text{font-size:13px;margin-bottom:12px;min-height:16px;}
+  #route-text{font-size:13px;margin-bottom:6px;min-height:16px;}
+  #next-turn-text{font-size:12px;line-height:1.3;color:var(--accent);margin-bottom:12px;min-height:16px;}
   #dest-actions{display:flex;gap:20px;}
   #dest-actions a, #dest-actions button{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:9px 6px;font-size:12px;font-weight:700;text-align:center;text-decoration:none;cursor:pointer;}
   #dest-actions a{color:var(--accent);}
@@ -67,7 +68,7 @@
     <h1>See your group, live.</h1>
     <p class="sub">Everyone who opens this page with the same group code shows up on the same map.</p>
     <label for="name-input">Your name</label>
-    <input id="name-input" maxlength="30" placeholder="e.g. Doland Trump">
+    <input id="name-input" maxlength="30" placeholder="e.g. Manjyot Singh">
     <label for="group-input">Group code</label>
     <input id="group-input" maxlength="24" placeholder="e.g. amritsar-sunday-ride">
     <label for="access-input">Access code</label>
@@ -84,9 +85,10 @@
   </div>
   <div id="dest-box">
     <div id="route-text"></div>
+    <div id="next-turn-text"></div>
     <div id="dest-actions">
-      <a id="nav-link" href="#" target="_blank" rel="noopener">Navigate ↗</a>
-      <button id="clear-dest-btn" type="button">Clear meeting point</button>
+      <a id="nav-link" href="#" target="_blank" rel="noopener">Navigate on Google Maps</a>
+      <button id="clear-dest-btn" type="button">Clear Destination</button>
     </div>
   </div>
   <div id="panel">
@@ -138,6 +140,7 @@
   let groupRootRef = null, myRef = null, myColorRef = null, groupUnsubscribe = null, latestDestination = null;
   let destinationMarker = null;
   let directionsService = null, directionsRenderer = null, lastRouteOrigin = null, lastDestTs = null;
+  let latestRouteLeg = null, currentStepIndex = 0;
 
   function haversineMeters(a, b){
     const R = 6371000, toRad = d => d * Math.PI/180;
@@ -146,11 +149,65 @@
     return 2 * R * Math.asin(Math.sqrt(x));
   }
 
+  function stripHtml(html){
+    const d = document.createElement("div");
+    d.innerHTML = html || "";
+    return (d.textContent || d.innerText || "").replace(/\s+/g, " ").trim();
+  }
+
+  function requestOneShotLocation(reason){
+    if(!navigator.geolocation || isSharing) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => { lastPos = pos; updateRoute(true); updateNextTurn(); },
+      err => {
+        const textEl = document.getElementById("route-text");
+        if(textEl && latestDestination) textEl.textContent = "Location needed to calculate route. Press Start Sharing or allow location.";
+      },
+      { enableHighAccuracy:true, maximumAge:10000, timeout:12000 }
+    );
+  }
+
+  function updateNextTurn(){
+    const turnEl = document.getElementById("next-turn-text");
+    if(!turnEl) return;
+    if(!latestRouteLeg || !latestRouteLeg.steps || !latestRouteLeg.steps.length || !lastPos){
+      turnEl.textContent = latestDestination ? "Next turn will appear once your route is ready." : "";
+      return;
+    }
+    const here = { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude };
+
+    while(currentStepIndex < latestRouteLeg.steps.length - 1){
+      const stepEnd = latestRouteLeg.steps[currentStepIndex].end_location;
+      const stepEndPos = { lat: stepEnd.lat(), lng: stepEnd.lng() };
+      if(haversineMeters(here, stepEndPos) < 55) currentStepIndex++;
+      else break;
+    }
+
+    const step = latestRouteLeg.steps[currentStepIndex];
+    const stepStart = step.start_location;
+    const stepEnd = step.end_location;
+    const distToStepEnd = haversineMeters(here, { lat: stepEnd.lat(), lng: stepEnd.lng() });
+    const distToStepStart = haversineMeters(here, { lat: stepStart.lat(), lng: stepStart.lng() });
+    const shownDistance = currentStepIndex === 0 ? Math.min(distToStepEnd, step.distance.value) : distToStepEnd;
+    const distText = shownDistance >= 1000 ? (shownDistance/1000).toFixed(1) + " km" : Math.round(shownDistance/10)*10 + " m";
+    const instruction = stripHtml(step.instructions) || "Continue";
+
+    if(currentStepIndex >= latestRouteLeg.steps.length - 1 && distToStepEnd < 80){
+      turnEl.textContent = "You are near the destination.";
+    } else {
+      turnEl.textContent = `Next: ${instruction} in ${distText}`;
+    }
+  }
+
   function updateRoute(force){
     const textEl = document.getElementById("route-text");
     if(!map || !directionsService || !latestDestination || !lastPos){
       if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+      latestRouteLeg = null;
+      currentStepIndex = 0;
+      updateNextTurn();
       if(textEl) textEl.textContent = latestDestination ? "Calculating route…" : "";
+      if(latestDestination && !lastPos) requestOneShotLocation("route");
       return;
     }
     const origin = { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude };
@@ -165,7 +222,13 @@
       if(status === "OK"){
         directionsRenderer.setDirections(result);
         const leg = result.routes[0].legs[0];
-        textEl.textContent = `${leg.distance.text} · ${leg.duration.text} to ${latestDestination.name || "meeting point"}`;
+        latestRouteLeg = leg;
+        currentStepIndex = 0;
+        textEl.textContent = `${leg.distance.text} · ${leg.duration.text} to ${latestDestination.name || "destination"}`;
+        updateNextTurn();
+      } else {
+        latestRouteLeg = null;
+        updateNextTurn();
       }
     });
   }
@@ -270,7 +333,8 @@
       renderDestination();
     });
     isSharing = false;
-    autoFit = false;
+    autoFit = true;
+    lastAutoFitAt = 0;
     updateShareButton();
     updateCenterBtnUI();
   }
@@ -305,7 +369,7 @@
     }
 
     watchId = navigator.geolocation.watchPosition(
-      pos => { lastPos = pos; writeMyLocation(); },
+      pos => { lastPos = pos; writeMyLocation(); updateRoute(false); updateNextTurn(); },
       err => { statusMsg.textContent = "Location error: " + err.message; },
       { enableHighAccuracy:true, maximumAge:4000, timeout:15000 }
     );
@@ -335,7 +399,8 @@
     wakeLock = null;
     lastPos = null;
     isSharing = false;
-    autoFit = false;
+    autoFit = true;
+    lastAutoFitAt = 0;
     updateShareButton();
     updateCenterBtnUI();
   }
@@ -394,8 +459,9 @@
     if(!latestDestination){
       if(destinationMarker){ destinationMarker.setMap(null); destinationMarker = null; }
       box.style.display = "none";
-      lastRouteOrigin = null; lastDestTs = null;
+      lastRouteOrigin = null; lastDestTs = null; latestRouteLeg = null; currentStepIndex = 0;
       updateRoute(false);
+      updateNextTurn();
       return;
     }
     const pos = { lat: latestDestination.lat, lng: latestDestination.lng };
@@ -405,7 +471,10 @@
     if(latestDestination.ts !== lastDestTs){
       lastDestTs = latestDestination.ts;
       lastRouteOrigin = null;
+      latestRouteLeg = null;
+      currentStepIndex = 0;
       updateRoute(true);
+      if(!lastPos) requestOneShotLocation("destination");
     }
 
     if(!destinationMarker){
@@ -418,7 +487,7 @@
     box.style.display = "block";
     document.getElementById("nav-link").href = navUrl;
     document.getElementById("clear-dest-btn").onclick = () => {
-      if(confirm(`Clear "${label}" for everyone on the ride? This can't be undone.`)){
+      if(confirm(`Clear destination "${label}" for everyone on the ride? This can't be undone.`)){
         remove(ref(db, `groups/${groupCode}/destination`));
       }
     };
@@ -432,10 +501,8 @@
       const place = autocomplete.getPlace();
       if(!place.geometry) return;
       const loc = place.geometry.location;
-      autoFit = false;
-      updateCenterBtnUI();
-      map.panTo(loc);
-      map.setZoom(15);
+      // Keep group auto-zoom active. The destination pin/route will update,
+      // but the map remains fitted to all riders until the user manually pans/zooms.
       set(ref(db, `groups/${groupCode}/destination`), {
         lat: loc.lat(), lng: loc.lng(), name: place.name || input.value, ts: Date.now()
       });
@@ -491,6 +558,7 @@
     setupSearch();
     setInterval(() => { if(map) map.setOptions({ styles: getMapStyle() }); }, 5*60*1000);
     setInterval(() => updateRoute(false), 30*1000);
+    setInterval(() => updateNextTurn(), 5000);
   }
 
   let mapsLoading = false;
